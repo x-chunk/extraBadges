@@ -8,7 +8,11 @@ HTTP-сервис, хранящий связку `user_id → emoji_id` (бей�
 go run ./cmd/extrabadges
 ```
 
-Адрес задаётся переменной `EXTRABADGES_ADDR` (по умолчанию `:8080`).
+| Переменная              | По умолчанию     | Описание                                   |
+|-------------------------|------------------|--------------------------------------------|
+| `EXTRABADGES_ADDR`      | `:8080`          | адрес HTTP-сервера                         |
+| `EXTRABADGES_DB`        | `extrabadges.db` | путь к файлу SQLite (создаётся сам)        |
+| `EXTRABADGES_CACHE_TTL` | `5m`             | TTL кэша для `GET /badges/{id}`; `0` — выкл |
 
 ## API
 
@@ -19,6 +23,7 @@ go run ./cmd/extrabadges
 | GET    | `/badges/{userID}`   | бейдж пользователя                    |
 | POST   | `/badges`            | создать (`409`, если уже есть)        |
 | PUT    | `/badges/{userID}`   | создать или заменить                  |
+| PATCH  | `/badges/{userID}`   | частично изменить (`emoji_id`, `title`) |
 | DELETE | `/badges/{userID}`   | удалить                               |
 
 Тело: `{"user_id": 1, "emoji_id": 2, "title": "..."}` (`title` опционален).
@@ -28,7 +33,10 @@ go run ./cmd/extrabadges
 ```
 cmd/extrabadges        точка входа, graceful shutdown
 internal/badge         доменная модель, валидация, сервис, интерфейс Repository
-internal/storage/memory потокобезопасное in-memory хранилище
+internal/storage/sqlite  SQLite-хранилище (modernc.org/sqlite, без cgo)
+internal/storage/cached  TTL-кэш поверх любого Repository (github.com/x-chunk/anvil)
+internal/storage/memory  in-memory хранилище (для тестов)
+internal/storage/storagetest общий контрактный тест для всех Repository
 internal/httpapi       HTTP-хендлеры и роутинг
 internal/config        конфигурация из env
 ```

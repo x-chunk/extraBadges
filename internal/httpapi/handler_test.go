@@ -54,10 +54,16 @@ func TestRoutes(t *testing.T) {
 		{"put invalid", "PUT", "/badges/9", `{"emoji_id":0}`, 400, "emoji_id"},
 		{"put bad id", "PUT", "/badges/x", `{"emoji_id":1}`, 400, "positive integer"},
 		{"put bad json", "PUT", "/badges/9", `nope`, 400, "invalid JSON"},
+		{"patch title", "PATCH", "/badges/1256738876", `{"title":"new"}`, 200, `"emoji_id":5276360730361229322,"title":"new"`},
+		{"patch emoji", "PATCH", "/badges/1256738876", `{"emoji_id":3}`, 200, `"emoji_id":3,"title":"seed"`},
+		{"patch missing", "PATCH", "/badges/42", `{"title":"x"}`, 404, "not found"},
+		{"patch invalid", "PATCH", "/badges/1256738876", `{"emoji_id":0}`, 400, "emoji_id"},
+		{"patch unknown field", "PATCH", "/badges/1256738876", `{"user_id":1}`, 400, "invalid JSON"},
+		{"patch bad id", "PATCH", "/badges/x", `{}`, 400, "positive integer"},
 		{"delete", "DELETE", "/badges/1256738876", "", 204, ""},
 		{"delete missing", "DELETE", "/badges/42", "", 404, "not found"},
 		{"delete bad id", "DELETE", "/badges/0", "", 400, "positive integer"},
-		{"method not allowed", "PATCH", "/badges/1", "", 405, ""},
+		{"method not allowed", "POST", "/badges/1", "", 405, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -82,3 +82,28 @@ func TestService(t *testing.T) {
 		t.Fatalf("after delete: want ErrNotFound, got %v", err)
 	}
 }
+
+func ptr[T any](v T) *T { return &v }
+
+func TestServiceUpdate(t *testing.T) {
+	ctx := context.Background()
+	svc := badge.NewService(memory.New(badge.Badge{UserID: 1, EmojiID: 10, Title: "old"}))
+
+	if _, err := svc.Update(ctx, 2, badge.Patch{EmojiID: ptr[int64](1)}); !errors.Is(err, badge.ErrNotFound) {
+		t.Fatalf("missing: want ErrNotFound, got %v", err)
+	}
+	got, err := svc.Update(ctx, 1, badge.Patch{Title: ptr("new")})
+	if err != nil || got != (badge.Badge{UserID: 1, EmojiID: 10, Title: "new"}) {
+		t.Fatalf("title patch = %+v, %v", got, err)
+	}
+	got, err = svc.Update(ctx, 1, badge.Patch{EmojiID: ptr[int64](20)})
+	if err != nil || got.EmojiID != 20 || got.Title != "new" {
+		t.Fatalf("emoji patch = %+v, %v", got, err)
+	}
+	if _, err := svc.Update(ctx, 1, badge.Patch{EmojiID: ptr[int64](-1)}); !errors.Is(err, badge.ErrInvalid) {
+		t.Fatalf("invalid: want ErrInvalid, got %v", err)
+	}
+	if got, _ := svc.Get(ctx, 1); got.EmojiID != 20 {
+		t.Fatalf("invalid patch was persisted: %+v", got)
+	}
+}

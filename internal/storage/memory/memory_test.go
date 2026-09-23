@@ -2,45 +2,25 @@ package memory
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"testing"
 
 	"extra-badges/internal/badge"
+	"extra-badges/internal/storage/storagetest"
 )
 
-func TestRepository(t *testing.T) {
-	ctx := context.Background()
-	r := New(badge.Badge{UserID: 3, EmojiID: 30}, badge.Badge{UserID: 1, EmojiID: 10})
+func TestContract(t *testing.T) {
+	storagetest.Run(t, func(*testing.T) badge.Repository { return New() })
+}
 
-	if _, err := r.Get(ctx, 2); !errors.Is(err, badge.ErrNotFound) {
-		t.Fatalf("want ErrNotFound, got %v", err)
-	}
-	if err := r.Create(ctx, badge.Badge{UserID: 1, EmojiID: 1}); !errors.Is(err, badge.ErrAlreadyExists) {
-		t.Fatalf("want ErrAlreadyExists, got %v", err)
-	}
-	if err := r.Create(ctx, badge.Badge{UserID: 2, EmojiID: 20}); err != nil {
-		t.Fatal(err)
-	}
-	list, _ := r.List(ctx)
-	if len(list) != 3 || list[0].UserID != 1 || list[1].UserID != 2 || list[2].UserID != 3 {
-		t.Fatalf("list not sorted/complete: %+v", list)
-	}
-	if err := r.Upsert(ctx, badge.Badge{UserID: 2, EmojiID: 99}); err != nil {
-		t.Fatal(err)
-	}
-	if b, _ := r.Get(ctx, 2); b.EmojiID != 99 {
-		t.Fatalf("upsert not applied: %+v", b)
-	}
-	if err := r.Delete(ctx, 2); err != nil {
-		t.Fatal(err)
-	}
-	if err := r.Delete(ctx, 2); !errors.Is(err, badge.ErrNotFound) {
-		t.Fatalf("want ErrNotFound, got %v", err)
+func TestSeed(t *testing.T) {
+	r := New(badge.Badge{UserID: 1, EmojiID: 10})
+	if b, err := r.Get(context.Background(), 1); err != nil || b.EmojiID != 10 {
+		t.Fatalf("seed not loaded: %+v %v", b, err)
 	}
 }
 
-func TestRepositoryConcurrent(t *testing.T) {
+func TestConcurrent(t *testing.T) {
 	ctx := context.Background()
 	r := New()
 	var wg sync.WaitGroup

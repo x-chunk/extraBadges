@@ -43,6 +43,8 @@ type Repository interface {
 	List(ctx context.Context) ([]Badge, error)
 	Create(ctx context.Context, b Badge) error
 	Upsert(ctx context.Context, b Badge) error
+	// Update replaces an existing badge; returns ErrNotFound if it is absent.
+	Update(ctx context.Context, b Badge) error
 	Delete(ctx context.Context, userID int64) error
 }
 
@@ -81,6 +83,32 @@ func (s *Service) Put(ctx context.Context, b Badge) (Badge, error) {
 		return Badge{}, err
 	}
 	if err := s.repo.Upsert(ctx, b); err != nil {
+		return Badge{}, err
+	}
+	return b, nil
+}
+
+// Patch describes a partial update; nil fields are left unchanged.
+type Patch struct {
+	EmojiID *int64  `json:"emoji_id"`
+	Title   *string `json:"title"`
+}
+
+func (s *Service) Update(ctx context.Context, userID int64, p Patch) (Badge, error) {
+	b, err := s.Get(ctx, userID)
+	if err != nil {
+		return Badge{}, err
+	}
+	if p.EmojiID != nil {
+		b.EmojiID = *p.EmojiID
+	}
+	if p.Title != nil {
+		b.Title = *p.Title
+	}
+	if err := b.Validate(); err != nil {
+		return Badge{}, err
+	}
+	if err := s.repo.Update(ctx, b); err != nil {
 		return Badge{}, err
 	}
 	return b, nil

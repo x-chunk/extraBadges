@@ -13,7 +13,8 @@ import (
 	"extra-badges/internal/badge"
 	"extra-badges/internal/config"
 	"extra-badges/internal/httpapi"
-	"extra-badges/internal/storage/memory"
+	"extra-badges/internal/storage/cached"
+	"extra-badges/internal/storage/sqlite"
 )
 
 func main() {
@@ -25,13 +26,21 @@ func main() {
 }
 
 func run(log *slog.Logger) error {
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
 
-	repo := memory.New(badge.Badge{
-		UserID:  1256738876,
-		EmojiID: 5276360730361229322,
-		Title:   badge.DefaultTitle,
-	})
+	db, err := sqlite.Open(context.Background(), cfg.DBPath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	var repo badge.Repository = db
+	if cfg.CacheTTL > 0 {
+		repo = cached.New(db, cfg.CacheTTL)
+	}
 	svc := badge.NewService(repo)
 
 	srv := &http.Server{
@@ -48,7 +57,7 @@ func run(log *slog.Logger) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		log.Info("server starting", "addr", cfg.Addr)
+		log.Info("server starting", "addr", cfg.Addr, "db", cfg.DBPath, "cache_ttl", cfg.CacheTTL)
 		errCh <- srv.ListenAndServe()
 	}()
 

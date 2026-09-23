@@ -18,6 +18,7 @@ type BadgeService interface {
 	List(ctx context.Context) ([]badge.Badge, error)
 	Create(ctx context.Context, b badge.Badge) (badge.Badge, error)
 	Put(ctx context.Context, b badge.Badge) (badge.Badge, error)
+	Update(ctx context.Context, userID int64, p badge.Patch) (badge.Badge, error)
 	Delete(ctx context.Context, userID int64) error
 }
 
@@ -37,6 +38,7 @@ func NewRouter(svc BadgeService, log *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /badges", h.create)
 	mux.HandleFunc("GET /badges/{userID}", h.get)
 	mux.HandleFunc("PUT /badges/{userID}", h.put)
+	mux.HandleFunc("PATCH /badges/{userID}", h.patch)
 	mux.HandleFunc("DELETE /badges/{userID}", h.delete)
 	return mux
 }
@@ -101,6 +103,23 @@ func (h *Handler) put(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.writeJSON(w, http.StatusOK, saved)
+}
+
+func (h *Handler) patch(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.userID(w, r)
+	if !ok {
+		return
+	}
+	var p badge.Patch
+	if !h.decode(w, r, &p) {
+		return
+	}
+	updated, err := h.svc.Update(r.Context(), id, p)
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+	h.writeJSON(w, http.StatusOK, updated)
 }
 
 func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {

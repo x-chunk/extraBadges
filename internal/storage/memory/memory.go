@@ -70,6 +70,16 @@ func (r *Repository) Upsert(_ context.Context, b badge.Badge) error {
 	return nil
 }
 
+func (r *Repository) Update(_ context.Context, b badge.Badge) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.badges[b.UserID]; !ok {
+		return badge.ErrNotFound
+	}
+	r.badges[b.UserID] = b
+	return nil
+}
+
 func (r *Repository) Delete(_ context.Context, userID int64) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
