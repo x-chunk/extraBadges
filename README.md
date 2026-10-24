@@ -26,6 +26,27 @@ EXTRABADGES_ADMIN_TOKEN=... EXTRABADGES_BOT_TOKEN=... go run ./cmd/extrabadges
 
 Схема SQLite мигрирует сама при старте (`PRAGMA user_version`).
 
+### Docker Compose
+
+```bash
+cp .env.example .env   # заполнить токены
+docker compose up --build
+```
+
+База лежит в volume `data`. Порт на хосте меняется через `EXTRABADGES_PORT`.
+
+### Тест с реальным клиентом
+
+1. Создать тестового бота в @BotFather и положить его токен в
+   `EXTRABADGES_BOT_TOKEN`: клиент получает `initData`, подписанный этим ботом.
+2. Дать клиенту доступ к серверу:
+   - в одной Wi-Fi сети — `http://<IP машины>:8080`;
+   - через туннель — `docker compose --profile tunnel up --build`, публичный
+     https-адрес `*.trycloudflare.com` появится в логах сервиса `tunnel`.
+3. Указать этот адрес в клиенте.
+
+Адрес туннеля меняется при каждом перезапуске, и он доступен всем, кто его знает.
+
 ## Публичный API
 
 Все ответы — JSON, ошибки — `{"error": "…"}`.
