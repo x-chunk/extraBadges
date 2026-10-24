@@ -57,8 +57,10 @@ func run(log *slog.Logger) error {
 			VerifyInitData: func(raw string) (int64, error) {
 				return telegram.ValidateInitData(raw, cfg.BotToken, cfg.InitDataMaxAge)
 			},
-			ClientTTL: cfg.ClientTTL,
-			Mark:      httpapi.ClientMark{EmojiID: cfg.MarkEmojiID, Text: cfg.MarkText},
+			ClientTTL:   cfg.ClientTTL,
+			Mark:        httpapi.ClientMark{EmojiID: cfg.MarkEmojiID, Text: cfg.MarkText},
+			ClientLimit: httpapi.DefaultClientLimit,
+			LookupLimit: httpapi.DefaultLookupLimit,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,

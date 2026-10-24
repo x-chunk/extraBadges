@@ -59,6 +59,9 @@ type Deps struct {
 	ClientTTL time.Duration
 	// Mark is served to clients by GET /v1/config.
 	Mark ClientMark
+	// ClientLimit and LookupLimit throttle public endpoints per IP.
+	ClientLimit RateLimit
+	LookupLimit RateLimit
 	// Now defaults to time.Now.
 	Now func() time.Time
 }
@@ -88,10 +91,12 @@ func NewRouter(d Deps) http.Handler {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", h.health)
-	mux.HandleFunc("GET /v1/config", h.config)
-	mux.HandleFunc("POST /v1/lookup", h.lookup)
-	mux.HandleFunc("POST /v1/clients/register", h.registerClient)
-	mux.HandleFunc("DELETE /v1/clients/me", h.hideClient)
+	browse := h.rateLimit(d.LookupLimit)
+	mux.HandleFunc("GET /v1/config", browse(h.config))
+	mux.HandleFunc("POST /v1/lookup", browse(h.lookup))
+	clients := h.rateLimit(d.ClientLimit)
+	mux.HandleFunc("POST /v1/clients/register", clients(h.registerClient))
+	mux.HandleFunc("DELETE /v1/clients/me", clients(h.hideClient))
 	mux.Handle(adminPrefix+"/", h.requireAdmin(d.AdminToken, admin))
 	return mux
 }

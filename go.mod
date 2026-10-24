@@ -4,6 +4,7 @@ go 1.26.1
 
 require (
 	github.com/x-chunk/anvil v1.0.5
+	golang.org/x/time v0.16.0
 	modernc.org/sqlite v1.59.0
 )
 

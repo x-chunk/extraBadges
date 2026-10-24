@@ -42,6 +42,10 @@ EXTRABADGES_ADMIN_TOKEN=... EXTRABADGES_BOT_TOKEN=... go run ./cmd/extrabadges
 есть, только если метка не скрыта и моложе `EXTRABADGES_CLIENT_TTL`; больше
 100 id → `400`. Тела `lookup` не логируются.
 
+Публичные ручки ограничены по IP (`429` при превышении): `register` и `me`
+делят общий лимит, `lookup` и `config` — свой. За reverse proxy IP — это
+адрес прокси, поэтому лимиты нужно ставить и на нём.
+
 ## Админский API
 
 Все ручки требуют `Authorization: Bearer $EXTRABADGES_ADMIN_TOKEN`, иначе `401`.
