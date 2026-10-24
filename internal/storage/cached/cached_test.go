@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"extra-badges/internal/badge"
+	"extra-badges/internal/client"
 	"extra-badges/internal/storage/memory"
 	"extra-badges/internal/storage/storagetest"
 )
@@ -113,4 +114,10 @@ func TestGetManyFetchesOnlyMisses(t *testing.T) {
 	if len(backend.many) != 1 {
 		t.Fatalf("all-hit GetMany reached backend: %v", backend.many)
 	}
+}
+
+func TestClientsContract(t *testing.T) {
+	storagetest.RunClients(t, func(*testing.T) client.Repository {
+		return NewClients(memory.NewClients(), time.Minute)
+	})
 }

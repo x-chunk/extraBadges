@@ -24,6 +24,11 @@ var migrations = []string{
 	updated_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 	)`,
 	`ALTER TABLE badges RENAME COLUMN title TO description`,
+	`CREATE TABLE clients (
+		user_id   INTEGER PRIMARY KEY,
+		last_seen TEXT    NOT NULL,
+		hidden    INTEGER NOT NULL DEFAULT 0
+	)`,
 }
 
 type Repository struct {

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"extra-badges/internal/badge"
+	"extra-badges/internal/client"
 	"extra-badges/internal/storage/storagetest"
 )
 
@@ -120,4 +121,10 @@ func TestMigrationsAreIdempotent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.db")
 	open(t, path).Close()
 	open(t, path)
+}
+
+func TestClientsContract(t *testing.T) {
+	storagetest.RunClients(t, func(t *testing.T) client.Repository {
+		return open(t, filepath.Join(t.TempDir(), "test.db")).Clients()
+	})
 }

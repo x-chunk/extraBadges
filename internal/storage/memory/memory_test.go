@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"extra-badges/internal/badge"
+	"extra-badges/internal/client"
 	"extra-badges/internal/storage/storagetest"
 )
 
@@ -37,4 +38,8 @@ func TestConcurrent(t *testing.T) {
 	if list, _ := r.List(ctx); len(list) != 100 {
 		t.Fatalf("got %d badges, want 100", len(list))
 	}
+}
+
+func TestClientsContract(t *testing.T) {
+	storagetest.RunClients(t, func(*testing.T) client.Repository { return NewClients() })
 }
