@@ -1,0 +1,22 @@
+services:
+  extrabadges:
+    build: .
+    env_file: .env
+    ports:
+      - "${EXTRABADGES_PORT:-8080}:8080"
+    volumes:
+      - data:/data
+    restart: unless-stopped
+
+  # Public https URL for a real client: docker compose --profile tunnel up
+  # The URL is printed in the logs (*.trycloudflare.com).
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate --url http://extrabadges:8080
+    depends_on:
+      - extrabadges
+    profiles:
+      - tunnel
+
+volumes:
+  data:
