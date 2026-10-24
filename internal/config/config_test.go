@@ -6,6 +6,7 @@ import (
 )
 
 func TestDefaults(t *testing.T) {
+	t.Setenv("EXTRABADGES_ADMIN_TOKEN", "secret")
 	t.Setenv("EXTRABADGES_ADDR", "")
 	t.Setenv("EXTRABADGES_DB", "")
 	t.Setenv("EXTRABADGES_CACHE_TTL", "")
@@ -19,6 +20,7 @@ func TestDefaults(t *testing.T) {
 }
 
 func TestOverrides(t *testing.T) {
+	t.Setenv("EXTRABADGES_ADMIN_TOKEN", "secret")
 	t.Setenv("EXTRABADGES_ADDR", ":9000")
 	t.Setenv("EXTRABADGES_DB", "/tmp/x.db")
 	t.Setenv("EXTRABADGES_CACHE_TTL", "0s")
@@ -32,8 +34,16 @@ func TestOverrides(t *testing.T) {
 }
 
 func TestBadTTL(t *testing.T) {
+	t.Setenv("EXTRABADGES_ADMIN_TOKEN", "secret")
 	t.Setenv("EXTRABADGES_CACHE_TTL", "soon")
 	if _, err := Load(); err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestAdminTokenRequired(t *testing.T) {
+	t.Setenv("EXTRABADGES_ADMIN_TOKEN", "")
+	if _, err := Load(); err == nil {
+		t.Fatal("expected error without admin token")
 	}
 }

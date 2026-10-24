@@ -3,11 +3,13 @@ package httpapi
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"extra-badges/internal/badge"
 )
@@ -29,18 +31,44 @@ type Handler struct {
 
 const maxBodyBytes = 1 << 16
 
+const adminPrefix = "/v1/admin"
+
+// Deps holds everything the router needs.
+type Deps struct {
+	Badges     BadgeService
+	Log        *slog.Logger
+	AdminToken string
+}
+
 // NewRouter builds the HTTP routes.
-func NewRouter(svc BadgeService, log *slog.Logger) http.Handler {
-	h := &Handler{svc: svc, log: log}
+func NewRouter(d Deps) http.Handler {
+	h := &Handler{svc: d.Badges, log: d.Log}
+
+	admin := http.NewServeMux()
+	admin.HandleFunc("GET "+adminPrefix+"/badges", h.list)
+	admin.HandleFunc("POST "+adminPrefix+"/badges", h.create)
+	admin.HandleFunc("GET "+adminPrefix+"/badges/{userID}", h.get)
+	admin.HandleFunc("PUT "+adminPrefix+"/badges/{userID}", h.put)
+	admin.HandleFunc("PATCH "+adminPrefix+"/badges/{userID}", h.patch)
+	admin.HandleFunc("DELETE "+adminPrefix+"/badges/{userID}", h.delete)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", h.health)
-	mux.HandleFunc("GET /badges", h.list)
-	mux.HandleFunc("POST /badges", h.create)
-	mux.HandleFunc("GET /badges/{userID}", h.get)
-	mux.HandleFunc("PUT /badges/{userID}", h.put)
-	mux.HandleFunc("PATCH /badges/{userID}", h.patch)
-	mux.HandleFunc("DELETE /badges/{userID}", h.delete)
+	mux.Handle(adminPrefix+"/", h.requireAdmin(d.AdminToken, admin))
 	return mux
+}
+
+// requireAdmin rejects requests that lack the admin bearer token.
+func (h *Handler) requireAdmin(token string, next http.Handler) http.Handler {
+	want := []byte(token)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if !ok || len(want) == 0 || subtle.ConstantTimeCompare([]byte(got), want) != 1 {
+			h.writeMessage(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (h *Handler) health(w http.ResponseWriter, _ *http.Request) {
@@ -79,7 +107,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, err)
 		return
 	}
-	w.Header().Set("Location", "/badges/"+strconv.FormatInt(created.UserID, 10))
+	w.Header().Set("Location", adminPrefix+"/badges/"+strconv.FormatInt(created.UserID, 10))
 	h.writeJSON(w, http.StatusCreated, created)
 }
 

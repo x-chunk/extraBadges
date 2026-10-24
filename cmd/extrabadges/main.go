@@ -45,7 +45,7 @@ func run(log *slog.Logger) error {
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpapi.NewRouter(svc, log),
+		Handler:           httpapi.NewRouter(httpapi.Deps{Badges: svc, Log: log, AdminToken: cfg.AdminToken}),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
