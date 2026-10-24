@@ -33,7 +33,14 @@ type Handler struct {
 	verifyInitData func(raw string) (int64, error)
 	clientTTL      time.Duration
 	now            func() time.Time
+	mark           ClientMark
 	log            *slog.Logger
+}
+
+// ClientMark is the icon and text shared by every client mark.
+type ClientMark struct {
+	EmojiID int64  `json:"emoji_id,omitempty"`
+	Text    string `json:"text"`
 }
 
 const maxBodyBytes = 1 << 16
@@ -50,6 +57,8 @@ type Deps struct {
 	VerifyInitData func(raw string) (int64, error)
 	// ClientTTL is how long a client mark stays visible without renewal.
 	ClientTTL time.Duration
+	// Mark is served to clients by GET /v1/config.
+	Mark ClientMark
 	// Now defaults to time.Now.
 	Now func() time.Time
 }
@@ -65,6 +74,7 @@ func NewRouter(d Deps) http.Handler {
 		verifyInitData: d.VerifyInitData,
 		clientTTL:      d.ClientTTL,
 		now:            d.Now,
+		mark:           d.Mark,
 		log:            d.Log,
 	}
 
@@ -78,6 +88,7 @@ func NewRouter(d Deps) http.Handler {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", h.health)
+	mux.HandleFunc("GET /v1/config", h.config)
 	mux.HandleFunc("POST /v1/lookup", h.lookup)
 	mux.HandleFunc("POST /v1/clients/register", h.registerClient)
 	mux.HandleFunc("DELETE /v1/clients/me", h.hideClient)
@@ -100,6 +111,10 @@ func (h *Handler) requireAdmin(token string, next http.Handler) http.Handler {
 
 func (h *Handler) health(w http.ResponseWriter, _ *http.Request) {
 	h.writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) config(w http.ResponseWriter, _ *http.Request) {
+	h.writeJSON(w, http.StatusOK, map[string]ClientMark{"client_mark": h.mark})
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {

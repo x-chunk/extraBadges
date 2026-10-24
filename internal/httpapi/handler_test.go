@@ -45,6 +45,7 @@ func deps(svc httpapi.BadgeService) httpapi.Deps {
 			return id, nil
 		},
 		ClientTTL: time.Hour,
+		Mark:      httpapi.ClientMark{EmojiID: 123, Text: "exteraless user"},
 		Now:       func() time.Time { return testNow },
 	}
 }
@@ -76,6 +77,7 @@ func TestRoutes(t *testing.T) {
 		contains                 string
 	}{
 		{"health", "GET", "/healthz", "", 200, `"ok"`},
+		{"config", "GET", "/v1/config", "", 200, `{"client_mark":{"emoji_id":123,"text":"exteraless user"}}`},
 		{"get seed keeps int64 precision", "GET", "/v1/admin/badges/1256738876", "", 200, `"emoji_id":5276360730361229322`},
 		{"get missing", "GET", "/v1/admin/badges/42", "", 404, "not found"},
 		{"get bad id", "GET", "/v1/admin/badges/abc", "", 400, "positive integer"},

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -17,6 +18,8 @@ type Config struct {
 	BotToken        string
 	ClientTTL       time.Duration
 	InitDataMaxAge  time.Duration
+	MarkEmojiID     int64
+	MarkText        string
 }
 
 func Load() (Config, error) {
@@ -44,6 +47,12 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	var markEmojiID int64
+	if v := os.Getenv("EXTRABADGES_MARK_EMOJI_ID"); v != "" {
+		if markEmojiID, err = strconv.ParseInt(v, 10, 64); err != nil || markEmojiID <= 0 {
+			return Config{}, errors.New("EXTRABADGES_MARK_EMOJI_ID must be a positive integer")
+		}
+	}
 	return Config{
 		Addr:            getenv("EXTRABADGES_ADDR", ":8080"),
 		DBPath:          getenv("EXTRABADGES_DB", "extrabadges.db"),
@@ -53,6 +62,8 @@ func Load() (Config, error) {
 		BotToken:        botToken,
 		ClientTTL:       clientTTL,
 		InitDataMaxAge:  initDataMaxAge,
+		MarkEmojiID:     markEmojiID,
+		MarkText:        getenv("EXTRABADGES_MARK_TEXT", "exteraless user"),
 	}, nil
 }
 

@@ -77,3 +77,25 @@ func TestClientDurations(t *testing.T) {
 		}
 	}
 }
+
+func TestClientMark(t *testing.T) {
+	setRequired(t)
+	t.Setenv("EXTRABADGES_MARK_EMOJI_ID", "")
+	t.Setenv("EXTRABADGES_MARK_TEXT", "")
+	cfg, err := Load()
+	if err != nil || cfg.MarkEmojiID != 0 || cfg.MarkText != "exteraless user" {
+		t.Fatalf("defaults = %+v, %v", cfg, err)
+	}
+	t.Setenv("EXTRABADGES_MARK_EMOJI_ID", "5276360730361229322")
+	t.Setenv("EXTRABADGES_MARK_TEXT", "hi")
+	cfg, err = Load()
+	if err != nil || cfg.MarkEmojiID != 5276360730361229322 || cfg.MarkText != "hi" {
+		t.Fatalf("overrides = %+v, %v", cfg, err)
+	}
+	for _, bad := range []string{"x", "0", "-5"} {
+		t.Setenv("EXTRABADGES_MARK_EMOJI_ID", bad)
+		if _, err := Load(); err == nil {
+			t.Errorf("MARK_EMOJI_ID=%q: expected error", bad)
+		}
+	}
+}
