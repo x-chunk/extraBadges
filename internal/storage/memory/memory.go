@@ -34,6 +34,18 @@ func (r *Repository) Get(_ context.Context, userID int64) (badge.Badge, error) {
 	return b, nil
 }
 
+func (r *Repository) GetMany(_ context.Context, ids []int64) (map[int64]badge.Badge, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make(map[int64]badge.Badge, len(ids))
+	for _, id := range ids {
+		if b, ok := r.badges[id]; ok {
+			out[id] = b
+		}
+	}
+	return out, nil
+}
+
 func (r *Repository) List(_ context.Context) ([]badge.Badge, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

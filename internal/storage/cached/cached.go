@@ -36,6 +36,31 @@ func (r *Repository) Get(ctx context.Context, userID int64) (badge.Badge, error)
 	return b, nil
 }
 
+// GetMany serves cached ids directly and fetches all misses in one call.
+func (r *Repository) GetMany(ctx context.Context, ids []int64) (map[int64]badge.Badge, error) {
+	out := make(map[int64]badge.Badge, len(ids))
+	var misses []int64
+	for _, id := range ids {
+		if b, ok := r.cache.Get(id); ok {
+			out[id] = b
+		} else {
+			misses = append(misses, id)
+		}
+	}
+	if len(misses) == 0 {
+		return out, nil
+	}
+	fetched, err := r.next.GetMany(ctx, misses)
+	if err != nil {
+		return nil, err
+	}
+	for id, b := range fetched {
+		r.cache.Set(id, b)
+		out[id] = b
+	}
+	return out, nil
+}
+
 func (r *Repository) List(ctx context.Context) ([]badge.Badge, error) {
 	return r.next.List(ctx)
 }

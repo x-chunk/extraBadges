@@ -18,6 +18,7 @@ import (
 type BadgeService interface {
 	Get(ctx context.Context, userID int64) (badge.Badge, error)
 	List(ctx context.Context) ([]badge.Badge, error)
+	GetMany(ctx context.Context, ids []int64) (map[int64]badge.Badge, error)
 	Create(ctx context.Context, b badge.Badge) (badge.Badge, error)
 	Put(ctx context.Context, b badge.Badge) (badge.Badge, error)
 	Update(ctx context.Context, userID int64, p badge.Patch) (badge.Badge, error)
@@ -54,6 +55,7 @@ func NewRouter(d Deps) http.Handler {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", h.health)
+	mux.HandleFunc("POST /v1/lookup", h.lookup)
 	mux.Handle(adminPrefix+"/", h.requireAdmin(d.AdminToken, admin))
 	return mux
 }

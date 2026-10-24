@@ -102,4 +102,25 @@ func Run(t *testing.T, newRepo func(t *testing.T) badge.Repository) {
 			t.Fatalf("list = %+v", list)
 		}
 	})
+
+	t.Run("get many", func(t *testing.T) {
+		r := newRepo(t)
+		if got, err := r.GetMany(ctx, nil); err != nil || len(got) != 0 {
+			t.Fatalf("empty GetMany = %+v, %v", got, err)
+		}
+		for _, id := range []int64{1, 2} {
+			_ = r.Create(ctx, badge.Badge{UserID: id, EmojiID: id * 10, Description: "a"})
+		}
+		_, _ = r.Get(ctx, 1) // warm any cache
+		got, err := r.GetMany(ctx, []int64{1, 2, 3})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 2 || got[1].EmojiID != 10 || got[2].EmojiID != 20 {
+			t.Fatalf("GetMany = %+v", got)
+		}
+		if _, ok := got[3]; ok {
+			t.Fatal("missing id present in result")
+		}
+	})
 }

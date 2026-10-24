@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	_ "modernc.org/sqlite" // registers the "sqlite" driver
 
@@ -92,6 +93,35 @@ func (r *Repository) Get(ctx context.Context, userID int64) (badge.Badge, error)
 		return badge.Badge{}, fmt.Errorf("get badge: %w", err)
 	}
 	return b, nil
+}
+
+func (r *Repository) GetMany(ctx context.Context, ids []int64) (map[int64]badge.Badge, error) {
+	out := make(map[int64]badge.Badge, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	placeholders := strings.Repeat("?,", len(ids)-1) + "?"
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT user_id, emoji_id, description FROM badges WHERE user_id IN (`+placeholders+`)`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("get badges: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var b badge.Badge
+		if err := rows.Scan(&b.UserID, &b.EmojiID, &b.Description); err != nil {
+			return nil, fmt.Errorf("scan badge: %w", err)
+		}
+		out[b.UserID] = b
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("get badges: %w", err)
+	}
+	return out, nil
 }
 
 func (r *Repository) List(ctx context.Context) ([]badge.Badge, error) {

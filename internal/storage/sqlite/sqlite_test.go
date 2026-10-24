@@ -82,6 +82,7 @@ func TestClosedDBErrors(t *testing.T) {
 	checks := map[string]error{
 		"get":    func() error { _, err := r.Get(ctx, 1); return err }(),
 		"list":   func() error { _, err := r.List(ctx); return err }(),
+		"many":   func() error { _, err := r.GetMany(ctx, []int64{1}); return err }(),
 		"create": r.Create(ctx, b),
 		"upsert": r.Upsert(ctx, b),
 		"update": r.Update(ctx, b),

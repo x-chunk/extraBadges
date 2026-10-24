@@ -37,6 +37,8 @@ func (b *Badge) Validate() error {
 type Repository interface {
 	Get(ctx context.Context, userID int64) (Badge, error)
 	List(ctx context.Context) ([]Badge, error)
+	// GetMany returns the badges that exist among ids; missing ids are omitted.
+	GetMany(ctx context.Context, ids []int64) (map[int64]Badge, error)
 	Create(ctx context.Context, b Badge) error
 	Upsert(ctx context.Context, b Badge) error
 	// Update replaces an existing badge; returns ErrNotFound if it is absent.
@@ -58,6 +60,13 @@ func (s *Service) Get(ctx context.Context, userID int64) (Badge, error) {
 		return Badge{}, errors.Join(ErrInvalid, errors.New("user_id must be positive"))
 	}
 	return s.repo.Get(ctx, userID)
+}
+
+func (s *Service) GetMany(ctx context.Context, ids []int64) (map[int64]Badge, error) {
+	if len(ids) == 0 {
+		return map[int64]Badge{}, nil
+	}
+	return s.repo.GetMany(ctx, ids)
 }
 
 func (s *Service) List(ctx context.Context) ([]Badge, error) {

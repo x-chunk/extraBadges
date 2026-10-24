@@ -18,6 +18,12 @@ func TestContract(t *testing.T) {
 type countingRepo struct {
 	badge.Repository
 	gets int
+	many [][]int64
+}
+
+func (c *countingRepo) GetMany(ctx context.Context, ids []int64) (map[int64]badge.Badge, error) {
+	c.many = append(c.many, ids)
+	return c.Repository.GetMany(ctx, ids)
 }
 
 func (c *countingRepo) Get(ctx context.Context, id int64) (badge.Badge, error) {
@@ -82,5 +88,29 @@ func TestWriteBypassingCacheIsInvisibleUntilInvalidated(t *testing.T) {
 	_ = r.Upsert(ctx, badge.Badge{UserID: 1, EmojiID: 3})
 	if got, _ := r.Get(ctx, 1); got.EmojiID != 3 {
 		t.Fatalf("expected fresh value after write, got %+v", got)
+	}
+}
+
+func TestGetManyFetchesOnlyMisses(t *testing.T) {
+	ctx := context.Background()
+	backend := &countingRepo{Repository: memory.New(
+		badge.Badge{UserID: 1, EmojiID: 1},
+		badge.Badge{UserID: 2, EmojiID: 2},
+	)}
+	r := New(backend, time.Minute)
+
+	_, _ = r.Get(ctx, 1)
+	got, err := r.GetMany(ctx, []int64{1, 2, 3})
+	if err != nil || len(got) != 2 {
+		t.Fatalf("GetMany = %+v, %v", got, err)
+	}
+	if len(backend.many) != 1 || len(backend.many[0]) != 2 {
+		t.Fatalf("backend GetMany calls = %v, want one call for [2 3]", backend.many)
+	}
+	if _, err := r.GetMany(ctx, []int64{1, 2}); err != nil {
+		t.Fatal(err)
+	}
+	if len(backend.many) != 1 {
+		t.Fatalf("all-hit GetMany reached backend: %v", backend.many)
 	}
 }
