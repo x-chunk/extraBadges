@@ -8,8 +8,10 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"extra-badges/internal/badge"
 	"extra-badges/internal/httpapi"
@@ -17,17 +19,33 @@ import (
 )
 
 func newRouter() http.Handler {
-	repo := memory.New(badge.Badge{UserID: 1256738876, EmojiID: 5276360730361229322, Description: "seed"})
-	return httpapi.NewRouter(deps(badge.NewService(repo)))
+	return httpapi.NewRouter(deps(seedService()))
+}
+
+func seedService() httpapi.BadgeService {
+	return badge.NewService(memory.New(badge.Badge{UserID: 1256738876, EmojiID: 5276360730361229322, Description: "seed"}))
 }
 
 const adminToken = "test-token"
 
+var testNow = time.Unix(1_700_000_000, 0)
+
 func deps(svc httpapi.BadgeService) httpapi.Deps {
 	return httpapi.Deps{
 		Badges:     svc,
+		Clients:    memory.NewClients(),
 		Log:        slog.New(slog.NewTextHandler(io.Discard, nil)),
 		AdminToken: adminToken,
+		// Accepts "user:<id>" so tests need not sign real initData.
+		VerifyInitData: func(raw string) (int64, error) {
+			id, err := strconv.ParseInt(strings.TrimPrefix(raw, "user:"), 10, 64)
+			if err != nil || !strings.HasPrefix(raw, "user:") {
+				return 0, errors.New("bad init data")
+			}
+			return id, nil
+		},
+		ClientTTL: time.Hour,
+		Now:       func() time.Time { return testNow },
 	}
 }
 

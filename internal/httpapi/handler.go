@@ -10,8 +10,10 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"extra-badges/internal/badge"
+	"extra-badges/internal/client"
 )
 
 // BadgeService is what the HTTP layer needs from the domain.
@@ -26,8 +28,12 @@ type BadgeService interface {
 }
 
 type Handler struct {
-	svc BadgeService
-	log *slog.Logger
+	svc            BadgeService
+	clients        client.Repository
+	verifyInitData func(raw string) (int64, error)
+	clientTTL      time.Duration
+	now            func() time.Time
+	log            *slog.Logger
 }
 
 const maxBodyBytes = 1 << 16
@@ -37,13 +43,30 @@ const adminPrefix = "/v1/admin"
 // Deps holds everything the router needs.
 type Deps struct {
 	Badges     BadgeService
+	Clients    client.Repository
 	Log        *slog.Logger
 	AdminToken string
+	// VerifyInitData returns the user ID vouched for by Telegram initData.
+	VerifyInitData func(raw string) (int64, error)
+	// ClientTTL is how long a client mark stays visible without renewal.
+	ClientTTL time.Duration
+	// Now defaults to time.Now.
+	Now func() time.Time
 }
 
 // NewRouter builds the HTTP routes.
 func NewRouter(d Deps) http.Handler {
-	h := &Handler{svc: d.Badges, log: d.Log}
+	if d.Now == nil {
+		d.Now = time.Now
+	}
+	h := &Handler{
+		svc:            d.Badges,
+		clients:        d.Clients,
+		verifyInitData: d.VerifyInitData,
+		clientTTL:      d.ClientTTL,
+		now:            d.Now,
+		log:            d.Log,
+	}
 
 	admin := http.NewServeMux()
 	admin.HandleFunc("GET "+adminPrefix+"/badges", h.list)
@@ -56,6 +79,8 @@ func NewRouter(d Deps) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", h.health)
 	mux.HandleFunc("POST /v1/lookup", h.lookup)
+	mux.HandleFunc("POST /v1/clients/register", h.registerClient)
+	mux.HandleFunc("DELETE /v1/clients/me", h.hideClient)
 	mux.Handle(adminPrefix+"/", h.requireAdmin(d.AdminToken, admin))
 	return mux
 }

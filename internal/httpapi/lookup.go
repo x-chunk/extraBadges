@@ -18,14 +18,15 @@ type lookupBadge struct {
 }
 
 type lookupUser struct {
-	Badge *lookupBadge `json:"badge,omitempty"`
+	Client bool         `json:"client,omitempty"`
+	Badge  *lookupBadge `json:"badge,omitempty"`
 }
 
 type lookupResponse struct {
 	Users map[string]lookupUser `json:"users"`
 }
 
-// lookup reports badges for a batch of users. Users with nothing to show
+// lookup reports client marks and badges for a batch of users. Users with nothing to show
 // are left out of the response. The request body is never logged: it
 // reveals whose profiles the caller is viewing.
 func (h *Handler) lookup(w http.ResponseWriter, r *http.Request) {
@@ -52,10 +53,24 @@ func (h *Handler) lookup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	clients, err := h.clients.GetMany(r.Context(), ids)
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+
+	now := h.now()
 	resp := lookupResponse{Users: make(map[string]lookupUser, len(badges))}
-	for id, b := range badges {
-		resp.Users[strconv.FormatInt(id, 10)] = lookupUser{
-			Badge: &lookupBadge{EmojiID: b.EmojiID, Description: b.Description},
+	for _, id := range ids {
+		var u lookupUser
+		if c, ok := clients[id]; ok && c.Visible(now, h.clientTTL) {
+			u.Client = true
+		}
+		if b, ok := badges[id]; ok {
+			u.Badge = &lookupBadge{EmojiID: b.EmojiID, Description: b.Description}
+		}
+		if u.Client || u.Badge != nil {
+			resp.Users[strconv.FormatInt(id, 10)] = u
 		}
 	}
 	h.writeJSON(w, http.StatusOK, resp)

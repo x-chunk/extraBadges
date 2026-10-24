@@ -14,6 +14,9 @@ type Config struct {
 	CacheTTL        time.Duration
 	ShutdownTimeout time.Duration
 	AdminToken      string
+	BotToken        string
+	ClientTTL       time.Duration
+	InitDataMaxAge  time.Duration
 }
 
 func Load() (Config, error) {
@@ -29,13 +32,39 @@ func Load() (Config, error) {
 	if adminToken == "" {
 		return Config{}, errors.New("EXTRABADGES_ADMIN_TOKEN is required")
 	}
+	botToken := os.Getenv("EXTRABADGES_BOT_TOKEN")
+	if botToken == "" {
+		return Config{}, errors.New("EXTRABADGES_BOT_TOKEN is required")
+	}
+	clientTTL, err := duration("EXTRABADGES_CLIENT_TTL", "720h")
+	if err != nil {
+		return Config{}, err
+	}
+	initDataMaxAge, err := duration("EXTRABADGES_INITDATA_MAX_AGE", "24h")
+	if err != nil {
+		return Config{}, err
+	}
 	return Config{
 		Addr:            getenv("EXTRABADGES_ADDR", ":8080"),
 		DBPath:          getenv("EXTRABADGES_DB", "extrabadges.db"),
 		CacheTTL:        ttl,
 		ShutdownTimeout: 10 * time.Second,
 		AdminToken:      adminToken,
+		BotToken:        botToken,
+		ClientTTL:       clientTTL,
+		InitDataMaxAge:  initDataMaxAge,
 	}, nil
+}
+
+func duration(key, def string) (time.Duration, error) {
+	d, err := time.ParseDuration(getenv(key, def))
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", key, err)
+	}
+	if d <= 0 {
+		return 0, fmt.Errorf("%s must be positive", key)
+	}
+	return d, nil
 }
 
 func getenv(key, def string) string {

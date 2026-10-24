@@ -11,10 +11,12 @@ import (
 	"time"
 
 	"extra-badges/internal/badge"
+	"extra-badges/internal/client"
 	"extra-badges/internal/config"
 	"extra-badges/internal/httpapi"
 	"extra-badges/internal/storage/cached"
 	"extra-badges/internal/storage/sqlite"
+	"extra-badges/internal/telegram"
 )
 
 func main() {
@@ -38,14 +40,25 @@ func run(log *slog.Logger) error {
 	defer db.Close()
 
 	var repo badge.Repository = db
+	var clients client.Repository = db.Clients()
 	if cfg.CacheTTL > 0 {
 		repo = cached.New(db, cfg.CacheTTL)
+		clients = cached.NewClients(clients, cfg.CacheTTL)
 	}
 	svc := badge.NewService(repo)
 
 	srv := &http.Server{
-		Addr:              cfg.Addr,
-		Handler:           httpapi.NewRouter(httpapi.Deps{Badges: svc, Log: log, AdminToken: cfg.AdminToken}),
+		Addr: cfg.Addr,
+		Handler: httpapi.NewRouter(httpapi.Deps{
+			Badges:     svc,
+			Clients:    clients,
+			Log:        log,
+			AdminToken: cfg.AdminToken,
+			VerifyInitData: func(raw string) (int64, error) {
+				return telegram.ValidateInitData(raw, cfg.BotToken, cfg.InitDataMaxAge)
+			},
+			ClientTTL: cfg.ClientTTL,
+		}),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,

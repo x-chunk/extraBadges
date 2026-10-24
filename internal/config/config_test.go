@@ -6,7 +6,7 @@ import (
 )
 
 func TestDefaults(t *testing.T) {
-	t.Setenv("EXTRABADGES_ADMIN_TOKEN", "secret")
+	setRequired(t)
 	t.Setenv("EXTRABADGES_ADDR", "")
 	t.Setenv("EXTRABADGES_DB", "")
 	t.Setenv("EXTRABADGES_CACHE_TTL", "")
@@ -20,7 +20,7 @@ func TestDefaults(t *testing.T) {
 }
 
 func TestOverrides(t *testing.T) {
-	t.Setenv("EXTRABADGES_ADMIN_TOKEN", "secret")
+	setRequired(t)
 	t.Setenv("EXTRABADGES_ADDR", ":9000")
 	t.Setenv("EXTRABADGES_DB", "/tmp/x.db")
 	t.Setenv("EXTRABADGES_CACHE_TTL", "0s")
@@ -34,16 +34,46 @@ func TestOverrides(t *testing.T) {
 }
 
 func TestBadTTL(t *testing.T) {
-	t.Setenv("EXTRABADGES_ADMIN_TOKEN", "secret")
+	setRequired(t)
 	t.Setenv("EXTRABADGES_CACHE_TTL", "soon")
 	if _, err := Load(); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestAdminTokenRequired(t *testing.T) {
-	t.Setenv("EXTRABADGES_ADMIN_TOKEN", "")
-	if _, err := Load(); err == nil {
-		t.Fatal("expected error without admin token")
+func setRequired(t *testing.T) {
+	t.Helper()
+	t.Setenv("EXTRABADGES_ADMIN_TOKEN", "secret")
+	t.Setenv("EXTRABADGES_BOT_TOKEN", "123:bot")
+}
+
+func TestRequired(t *testing.T) {
+	for _, key := range []string{"EXTRABADGES_ADMIN_TOKEN", "EXTRABADGES_BOT_TOKEN"} {
+		t.Run(key, func(t *testing.T) {
+			setRequired(t)
+			t.Setenv(key, "")
+			if _, err := Load(); err == nil {
+				t.Fatalf("expected error without %s", key)
+			}
+		})
+	}
+}
+
+func TestClientDurations(t *testing.T) {
+	setRequired(t)
+	t.Setenv("EXTRABADGES_CLIENT_TTL", "")
+	t.Setenv("EXTRABADGES_INITDATA_MAX_AGE", "")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ClientTTL != 720*time.Hour || cfg.InitDataMaxAge != 24*time.Hour || cfg.BotToken != "123:bot" {
+		t.Fatalf("cfg = %+v", cfg)
+	}
+	for _, bad := range []string{"soon", "0s", "-1h"} {
+		t.Setenv("EXTRABADGES_CLIENT_TTL", bad)
+		if _, err := Load(); err == nil {
+			t.Errorf("CLIENT_TTL=%q: expected error", bad)
+		}
 	}
 }
