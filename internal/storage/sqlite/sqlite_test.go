@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -33,7 +34,7 @@ func TestPersistsAcrossReopen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := badge.Badge{UserID: 1, EmojiID: 2, Title: "x"}
+	want := badge.Badge{UserID: 1, EmojiID: 2, Description: "x"}
 	if err := r.Create(ctx, want); err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +54,7 @@ func TestConcurrentWrites(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := r.Upsert(ctx, badge.Badge{UserID: i + 1, EmojiID: 1, Title: "a"}); err != nil {
+			if err := r.Upsert(ctx, badge.Badge{UserID: i + 1, EmojiID: 1, Description: "a"}); err != nil {
 				t.Error(err)
 			}
 		}()
@@ -77,7 +78,7 @@ func TestClosedDBErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.Close()
-	b := badge.Badge{UserID: 1, EmojiID: 1, Title: "a"}
+	b := badge.Badge{UserID: 1, EmojiID: 1, Description: "a"}
 	checks := map[string]error{
 		"get":    func() error { _, err := r.Get(ctx, 1); return err }(),
 		"list":   func() error { _, err := r.List(ctx); return err }(),
@@ -91,4 +92,31 @@ func TestClosedDBErrors(t *testing.T) {
 			t.Errorf("%s on closed db: expected error", name)
 		}
 	}
+}
+
+func TestMigratesLegacySchema(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "legacy.db")
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.ExecContext(ctx, migrations[0]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.ExecContext(ctx, `INSERT INTO badges (user_id, emoji_id, title) VALUES (1, 2, 'old')`); err != nil {
+		t.Fatal(err)
+	}
+	raw.Close()
+
+	got, err := open(t, path).Get(ctx, 1)
+	if err != nil || got != (badge.Badge{UserID: 1, EmojiID: 2, Description: "old"}) {
+		t.Fatalf("after migration: %+v, %v", got, err)
+	}
+}
+
+func TestMigrationsAreIdempotent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test.db")
+	open(t, path).Close()
+	open(t, path)
 }

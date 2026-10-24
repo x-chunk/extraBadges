@@ -21,7 +21,7 @@ func Run(t *testing.T, newRepo func(t *testing.T) badge.Repository) {
 
 	t.Run("create and get keeps int64 precision", func(t *testing.T) {
 		r := newRepo(t)
-		want := badge.Badge{UserID: 1256738876, EmojiID: 5276360730361229322, Title: "t"}
+		want := badge.Badge{UserID: 1256738876, EmojiID: 5276360730361229322, Description: "t"}
 		if err := r.Create(ctx, want); err != nil {
 			t.Fatal(err)
 		}
@@ -33,7 +33,7 @@ func Run(t *testing.T, newRepo func(t *testing.T) badge.Repository) {
 
 	t.Run("create duplicate", func(t *testing.T) {
 		r := newRepo(t)
-		b := badge.Badge{UserID: 1, EmojiID: 1, Title: "a"}
+		b := badge.Badge{UserID: 1, EmojiID: 1, Description: "a"}
 		if err := r.Create(ctx, b); err != nil {
 			t.Fatal(err)
 		}
@@ -49,7 +49,7 @@ func Run(t *testing.T, newRepo func(t *testing.T) badge.Repository) {
 	t.Run("upsert inserts and replaces", func(t *testing.T) {
 		r := newRepo(t)
 		for _, emoji := range []int64{1, 2} {
-			if err := r.Upsert(ctx, badge.Badge{UserID: 1, EmojiID: emoji, Title: "a"}); err != nil {
+			if err := r.Upsert(ctx, badge.Badge{UserID: 1, EmojiID: emoji, Description: "a"}); err != nil {
 				t.Fatal(err)
 			}
 			if got, _ := r.Get(ctx, 1); got.EmojiID != emoji {
@@ -60,22 +60,22 @@ func Run(t *testing.T, newRepo func(t *testing.T) badge.Repository) {
 
 	t.Run("update", func(t *testing.T) {
 		r := newRepo(t)
-		if err := r.Update(ctx, badge.Badge{UserID: 1, EmojiID: 1, Title: "a"}); !errors.Is(err, badge.ErrNotFound) {
+		if err := r.Update(ctx, badge.Badge{UserID: 1, EmojiID: 1, Description: "a"}); !errors.Is(err, badge.ErrNotFound) {
 			t.Fatalf("update missing: want ErrNotFound, got %v", err)
 		}
-		_ = r.Create(ctx, badge.Badge{UserID: 1, EmojiID: 1, Title: "a"})
+		_ = r.Create(ctx, badge.Badge{UserID: 1, EmojiID: 1, Description: "a"})
 		_, _ = r.Get(ctx, 1) // warm any cache
-		if err := r.Update(ctx, badge.Badge{UserID: 1, EmojiID: 5, Title: "b"}); err != nil {
+		if err := r.Update(ctx, badge.Badge{UserID: 1, EmojiID: 5, Description: "b"}); err != nil {
 			t.Fatal(err)
 		}
-		if got, _ := r.Get(ctx, 1); got != (badge.Badge{UserID: 1, EmojiID: 5, Title: "b"}) {
+		if got, _ := r.Get(ctx, 1); got != (badge.Badge{UserID: 1, EmojiID: 5, Description: "b"}) {
 			t.Fatalf("stale after update: %+v", got)
 		}
 	})
 
 	t.Run("delete", func(t *testing.T) {
 		r := newRepo(t)
-		_ = r.Create(ctx, badge.Badge{UserID: 1, EmojiID: 1, Title: "a"})
+		_ = r.Create(ctx, badge.Badge{UserID: 1, EmojiID: 1, Description: "a"})
 		_, _ = r.Get(ctx, 1)
 		if err := r.Delete(ctx, 1); err != nil {
 			t.Fatal(err)
@@ -95,7 +95,7 @@ func Run(t *testing.T, newRepo func(t *testing.T) badge.Repository) {
 			t.Fatalf("empty list = %#v, %v", list, err)
 		}
 		for _, id := range []int64{3, 1, 2} {
-			_ = r.Create(ctx, badge.Badge{UserID: id, EmojiID: id, Title: "a"})
+			_ = r.Create(ctx, badge.Badge{UserID: id, EmojiID: id, Description: "a"})
 		}
 		list, _ = r.List(ctx)
 		if len(list) != 3 || list[0].UserID != 1 || list[1].UserID != 2 || list[2].UserID != 3 {

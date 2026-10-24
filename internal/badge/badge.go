@@ -7,22 +7,21 @@ import (
 	"strings"
 )
 
-const DefaultTitle = "This account has a badge provided by the extraBadges."
-
 var (
 	ErrNotFound      = errors.New("badge not found")
 	ErrAlreadyExists = errors.New("badge already exists")
 	ErrInvalid       = errors.New("invalid badge")
 )
 
-// Badge links a user to a custom emoji.
+// Badge links a user to a custom emoji shown next to their name.
 type Badge struct {
-	UserID  int64  `json:"user_id"`
-	EmojiID int64  `json:"emoji_id"`
-	Title   string `json:"title"`
+	UserID      int64  `json:"user_id"`
+	EmojiID     int64  `json:"emoji_id"`
+	Description string `json:"description"`
 }
 
-// Validate checks the badge and fills defaults.
+// Validate checks the badge and normalizes its fields. An empty
+// description means the client shows no tooltip.
 func (b *Badge) Validate() error {
 	if b.UserID <= 0 {
 		return errors.Join(ErrInvalid, errors.New("user_id must be positive"))
@@ -30,10 +29,7 @@ func (b *Badge) Validate() error {
 	if b.EmojiID <= 0 {
 		return errors.Join(ErrInvalid, errors.New("emoji_id must be positive"))
 	}
-	b.Title = strings.TrimSpace(b.Title)
-	if b.Title == "" {
-		b.Title = DefaultTitle
-	}
+	b.Description = strings.TrimSpace(b.Description)
 	return nil
 }
 
@@ -90,8 +86,8 @@ func (s *Service) Put(ctx context.Context, b Badge) (Badge, error) {
 
 // Patch describes a partial update; nil fields are left unchanged.
 type Patch struct {
-	EmojiID *int64  `json:"emoji_id"`
-	Title   *string `json:"title"`
+	EmojiID     *int64  `json:"emoji_id"`
+	Description *string `json:"description"`
 }
 
 func (s *Service) Update(ctx context.Context, userID int64, p Patch) (Badge, error) {
@@ -102,8 +98,8 @@ func (s *Service) Update(ctx context.Context, userID int64, p Patch) (Badge, err
 	if p.EmojiID != nil {
 		b.EmojiID = *p.EmojiID
 	}
-	if p.Title != nil {
-		b.Title = *p.Title
+	if p.Description != nil {
+		b.Description = *p.Description
 	}
 	if err := b.Validate(); err != nil {
 		return Badge{}, err

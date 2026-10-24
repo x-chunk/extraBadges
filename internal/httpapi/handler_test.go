@@ -17,7 +17,7 @@ import (
 )
 
 func newRouter() http.Handler {
-	repo := memory.New(badge.Badge{UserID: 1256738876, EmojiID: 5276360730361229322, Title: "seed"})
+	repo := memory.New(badge.Badge{UserID: 1256738876, EmojiID: 5276360730361229322, Description: "seed"})
 	return httpapi.NewRouter(deps(badge.NewService(repo)))
 }
 
@@ -63,19 +63,19 @@ func TestRoutes(t *testing.T) {
 		{"get bad id", "GET", "/v1/admin/badges/abc", "", 400, "positive integer"},
 		{"get negative id", "GET", "/v1/admin/badges/-1", "", 400, "positive integer"},
 		{"list", "GET", "/v1/admin/badges", "", 200, `"user_id":1256738876`},
-		{"create", "POST", "/v1/admin/badges", `{"user_id":5,"emoji_id":7}`, 201, badge.DefaultTitle},
+		{"create", "POST", "/v1/admin/badges", `{"user_id":5,"emoji_id":7}`, 201, `"description":""`},
 		{"create duplicate", "POST", "/v1/admin/badges", `{"user_id":1256738876,"emoji_id":7}`, 409, "already exists"},
 		{"create invalid", "POST", "/v1/admin/badges", `{"user_id":5}`, 400, "emoji_id"},
 		{"create bad json", "POST", "/v1/admin/badges", `{`, 400, "invalid JSON"},
 		{"create unknown field", "POST", "/v1/admin/badges", `{"user_id":5,"emoji_id":7,"x":1}`, 400, "invalid JSON"},
-		{"put", "PUT", "/v1/admin/badges/9", `{"emoji_id":3,"title":"t"}`, 200, `"user_id":9`},
+		{"put", "PUT", "/v1/admin/badges/9", `{"emoji_id":3,"description":"t"}`, 200, `"user_id":9`},
 		{"put mismatch", "PUT", "/v1/admin/badges/9", `{"user_id":8,"emoji_id":3}`, 400, "does not match"},
 		{"put invalid", "PUT", "/v1/admin/badges/9", `{"emoji_id":0}`, 400, "emoji_id"},
 		{"put bad id", "PUT", "/v1/admin/badges/x", `{"emoji_id":1}`, 400, "positive integer"},
 		{"put bad json", "PUT", "/v1/admin/badges/9", `nope`, 400, "invalid JSON"},
-		{"patch title", "PATCH", "/v1/admin/badges/1256738876", `{"title":"new"}`, 200, `"emoji_id":5276360730361229322,"title":"new"`},
-		{"patch emoji", "PATCH", "/v1/admin/badges/1256738876", `{"emoji_id":3}`, 200, `"emoji_id":3,"title":"seed"`},
-		{"patch missing", "PATCH", "/v1/admin/badges/42", `{"title":"x"}`, 404, "not found"},
+		{"patch description", "PATCH", "/v1/admin/badges/1256738876", `{"description":"new"}`, 200, `"emoji_id":5276360730361229322,"description":"new"`},
+		{"patch emoji", "PATCH", "/v1/admin/badges/1256738876", `{"emoji_id":3}`, 200, `"emoji_id":3,"description":"seed"`},
+		{"patch missing", "PATCH", "/v1/admin/badges/42", `{"description":"x"}`, 404, "not found"},
 		{"patch invalid", "PATCH", "/v1/admin/badges/1256738876", `{"emoji_id":0}`, 400, "emoji_id"},
 		{"patch unknown field", "PATCH", "/v1/admin/badges/1256738876", `{"user_id":1}`, 400, "invalid JSON"},
 		{"patch bad id", "PATCH", "/v1/admin/badges/x", `{}`, 400, "positive integer"},
@@ -99,7 +99,7 @@ func TestRoutes(t *testing.T) {
 
 func TestCreateThenGet(t *testing.T) {
 	h := newRouter()
-	rec := do(t, h, "POST", "/v1/admin/badges", `{"user_id":77,"emoji_id":88,"title":"hello"}`)
+	rec := do(t, h, "POST", "/v1/admin/badges", `{"user_id":77,"emoji_id":88,"description":"hello"}`)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body)
 	}
@@ -111,7 +111,7 @@ func TestCreateThenGet(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got != (badge.Badge{UserID: 77, EmojiID: 88, Title: "hello"}) {
+	if got != (badge.Badge{UserID: 77, EmojiID: 88, Description: "hello"}) {
 		t.Fatalf("got %+v", got)
 	}
 	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {

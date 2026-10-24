@@ -12,14 +12,18 @@ import (
 	"extra-badges/internal/badge"
 )
 
-const schema = `
-CREATE TABLE IF NOT EXISTS badges (
+// migrations[i] upgrades the schema from user_version i to i+1.
+// Append only: never edit a migration that has shipped.
+var migrations = []string{
+	`CREATE TABLE IF NOT EXISTS badges (
 	user_id    INTEGER PRIMARY KEY,
 	emoji_id   INTEGER NOT NULL,
 	title      TEXT    NOT NULL,
 	created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
 	updated_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-);`
+	)`,
+	`ALTER TABLE badges RENAME COLUMN title TO description`,
+}
 
 type Repository struct {
 	db *sql.DB
@@ -38,11 +42,38 @@ func Open(ctx context.Context, path string) (*Repository, error) {
 	// SQLite allows a single writer; one connection avoids SQLITE_BUSY
 	// and keeps ":memory:" databases shared across calls.
 	db.SetMaxOpenConns(1)
-	if _, err := db.ExecContext(ctx, schema); err != nil {
+	if err := migrate(ctx, db); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("apply schema: %w", err)
+		return nil, err
 	}
 	return &Repository{db: db}, nil
+}
+
+// migrate applies pending migrations, tracking progress in PRAGMA user_version.
+func migrate(ctx context.Context, db *sql.DB) error {
+	var version int
+	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
+		return fmt.Errorf("read schema version: %w", err)
+	}
+	for i := version; i < len(migrations); i++ {
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("begin migration %d: %w", i+1, err)
+		}
+		if _, err := tx.ExecContext(ctx, migrations[i]); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("apply migration %d: %w", i+1, err)
+		}
+		// PRAGMA does not accept bound parameters.
+		if _, err := tx.ExecContext(ctx, fmt.Sprintf(`PRAGMA user_version = %d`, i+1)); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("bump schema version to %d: %w", i+1, err)
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit migration %d: %w", i+1, err)
+		}
+	}
+	return nil
 }
 
 func (r *Repository) Close() error {
@@ -52,8 +83,8 @@ func (r *Repository) Close() error {
 func (r *Repository) Get(ctx context.Context, userID int64) (badge.Badge, error) {
 	var b badge.Badge
 	err := r.db.QueryRowContext(ctx,
-		`SELECT user_id, emoji_id, title FROM badges WHERE user_id = ?`, userID,
-	).Scan(&b.UserID, &b.EmojiID, &b.Title)
+		`SELECT user_id, emoji_id, description FROM badges WHERE user_id = ?`, userID,
+	).Scan(&b.UserID, &b.EmojiID, &b.Description)
 	if errors.Is(err, sql.ErrNoRows) {
 		return badge.Badge{}, badge.ErrNotFound
 	}
@@ -64,7 +95,7 @@ func (r *Repository) Get(ctx context.Context, userID int64) (badge.Badge, error)
 }
 
 func (r *Repository) List(ctx context.Context) ([]badge.Badge, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT user_id, emoji_id, title FROM badges ORDER BY user_id`)
+	rows, err := r.db.QueryContext(ctx, `SELECT user_id, emoji_id, description FROM badges ORDER BY user_id`)
 	if err != nil {
 		return nil, fmt.Errorf("list badges: %w", err)
 	}
@@ -72,7 +103,7 @@ func (r *Repository) List(ctx context.Context) ([]badge.Badge, error) {
 	out := []badge.Badge{}
 	for rows.Next() {
 		var b badge.Badge
-		if err := rows.Scan(&b.UserID, &b.EmojiID, &b.Title); err != nil {
+		if err := rows.Scan(&b.UserID, &b.EmojiID, &b.Description); err != nil {
 			return nil, fmt.Errorf("scan badge: %w", err)
 		}
 		out = append(out, b)
@@ -85,8 +116,8 @@ func (r *Repository) List(ctx context.Context) ([]badge.Badge, error) {
 
 func (r *Repository) Create(ctx context.Context, b badge.Badge) error {
 	res, err := r.db.ExecContext(ctx,
-		`INSERT INTO badges (user_id, emoji_id, title) VALUES (?, ?, ?) ON CONFLICT(user_id) DO NOTHING`,
-		b.UserID, b.EmojiID, b.Title)
+		`INSERT INTO badges (user_id, emoji_id, description) VALUES (?, ?, ?) ON CONFLICT(user_id) DO NOTHING`,
+		b.UserID, b.EmojiID, b.Description)
 	if err != nil {
 		return fmt.Errorf("create badge: %w", err)
 	}
@@ -95,12 +126,12 @@ func (r *Repository) Create(ctx context.Context, b badge.Badge) error {
 
 func (r *Repository) Upsert(ctx context.Context, b badge.Badge) error {
 	_, err := r.db.ExecContext(ctx, `
-		INSERT INTO badges (user_id, emoji_id, title) VALUES (?, ?, ?)
+		INSERT INTO badges (user_id, emoji_id, description) VALUES (?, ?, ?)
 		ON CONFLICT(user_id) DO UPDATE SET
-			emoji_id   = excluded.emoji_id,
-			title      = excluded.title,
-			updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`,
-		b.UserID, b.EmojiID, b.Title)
+			emoji_id    = excluded.emoji_id,
+			description = excluded.description,
+			updated_at  = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`,
+		b.UserID, b.EmojiID, b.Description)
 	if err != nil {
 		return fmt.Errorf("upsert badge: %w", err)
 	}
@@ -109,9 +140,9 @@ func (r *Repository) Upsert(ctx context.Context, b badge.Badge) error {
 
 func (r *Repository) Update(ctx context.Context, b badge.Badge) error {
 	res, err := r.db.ExecContext(ctx, `
-		UPDATE badges SET emoji_id = ?, title = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+		UPDATE badges SET emoji_id = ?, description = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 		WHERE user_id = ?`,
-		b.EmojiID, b.Title, b.UserID)
+		b.EmojiID, b.Description, b.UserID)
 	if err != nil {
 		return fmt.Errorf("update badge: %w", err)
 	}
