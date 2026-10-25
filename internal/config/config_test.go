@@ -99,3 +99,19 @@ func TestClientMark(t *testing.T) {
 		}
 	}
 }
+
+func TestTrustedProxies(t *testing.T) {
+	setRequired(t)
+	t.Setenv("EXTRABADGES_TRUSTED_PROXIES", "172.16.0.0/12, 127.0.0.1/32")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.TrustedProxies) != 2 || cfg.TrustedProxies[0].String() != "172.16.0.0/12" {
+		t.Fatalf("trusted = %v", cfg.TrustedProxies)
+	}
+	t.Setenv("EXTRABADGES_TRUSTED_PROXIES", "nope")
+	if _, err := Load(); err == nil {
+		t.Fatal("want error for invalid prefix")
+	}
+}

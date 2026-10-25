@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
@@ -35,6 +36,7 @@ type Handler struct {
 	now            func() time.Time
 	mark           ClientMark
 	log            *slog.Logger
+	trustedProxies []netip.Prefix
 }
 
 // ClientMark is the icon and text shared by every client mark.
@@ -62,6 +64,8 @@ type Deps struct {
 	// ClientLimit and LookupLimit throttle public endpoints per IP.
 	ClientLimit RateLimit
 	LookupLimit RateLimit
+	// TrustedProxies are networks whose X-Real-IP header names the client.
+	TrustedProxies []netip.Prefix
 	// Now defaults to time.Now.
 	Now func() time.Time
 }
@@ -79,6 +83,7 @@ func NewRouter(d Deps) http.Handler {
 		now:            d.Now,
 		mark:           d.Mark,
 		log:            d.Log,
+		trustedProxies: d.TrustedProxies,
 	}
 
 	admin := http.NewServeMux()

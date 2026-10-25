@@ -3,6 +3,8 @@ package httpapi
 import (
 	"net"
 	"net/http"
+	"net/netip"
+	"strings"
 	"sync"
 	"time"
 
@@ -65,10 +67,32 @@ func (l *ipLimiter) allow(ip string) bool {
 	return b.lim.AllowN(now, 1)
 }
 
+// clientIP returns the address a request came from. When the connection comes
+// from a trusted proxy, the proxy-supplied X-Real-IP header wins.
+func clientIP(r *http.Request, trusted []netip.Prefix) string {
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		ip = r.RemoteAddr
+	}
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return ip
+	}
+	addr = addr.Unmap()
+	for _, p := range trusted {
+		if !p.Contains(addr) {
+			continue
+		}
+		if real, err := netip.ParseAddr(strings.TrimSpace(r.Header.Get("X-Real-IP"))); err == nil {
+			return real.Unmap().String()
+		}
+		break
+	}
+	return addr.String()
+}
+
 // rateLimit returns a middleware enforcing a per-IP limit keyed on the
-// connection's remote address. Every handler it wraps shares the same
-// buckets. Behind a reverse proxy the remote address is the proxy's, so the
-// proxy must enforce its own limits.
+// client address. Every handler it wraps shares the same buckets.
 func (h *Handler) rateLimit(limit RateLimit) func(http.HandlerFunc) http.HandlerFunc {
 	if limit.Burst <= 0 {
 		return func(next http.HandlerFunc) http.HandlerFunc { return next }
@@ -76,11 +100,7 @@ func (h *Handler) rateLimit(limit RateLimit) func(http.HandlerFunc) http.Handler
 	l := newIPLimiter(limit, h.now)
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
-			ip, _, err := net.SplitHostPort(r.RemoteAddr)
-			if err != nil {
-				ip = r.RemoteAddr
-			}
-			if !l.allow(ip) {
+			if !l.allow(clientIP(r, h.trustedProxies)) {
 				w.Header().Set("Retry-After", "10")
 				h.writeMessage(w, http.StatusTooManyRequests, "rate limit exceeded")
 				return

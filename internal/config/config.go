@@ -4,8 +4,10 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -20,6 +22,7 @@ type Config struct {
 	InitDataMaxAge  time.Duration
 	MarkEmojiID     int64
 	MarkText        string
+	TrustedProxies  []netip.Prefix
 }
 
 func Load() (Config, error) {
@@ -53,6 +56,17 @@ func Load() (Config, error) {
 			return Config{}, errors.New("EXTRABADGES_MARK_EMOJI_ID must be a positive integer")
 		}
 	}
+	var trustedProxies []netip.Prefix
+	for _, v := range strings.Split(os.Getenv("EXTRABADGES_TRUSTED_PROXIES"), ",") {
+		if v = strings.TrimSpace(v); v == "" {
+			continue
+		}
+		p, err := netip.ParsePrefix(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("EXTRABADGES_TRUSTED_PROXIES: %w", err)
+		}
+		trustedProxies = append(trustedProxies, p.Masked())
+	}
 	return Config{
 		Addr:            getenv("EXTRABADGES_ADDR", ":8080"),
 		DBPath:          getenv("EXTRABADGES_DB", "extrabadges.db"),
@@ -64,6 +78,7 @@ func Load() (Config, error) {
 		InitDataMaxAge:  initDataMaxAge,
 		MarkEmojiID:     markEmojiID,
 		MarkText:        getenv("EXTRABADGES_MARK_TEXT", "exteraless user"),
+		TrustedProxies:  trustedProxies,
 	}, nil
 }
 

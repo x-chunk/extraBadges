@@ -3,6 +3,7 @@ package httpapi_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"testing"
 
@@ -47,5 +48,41 @@ func TestRateLimit(t *testing.T) {
 	// Admin and health endpoints are not limited.
 	if code := send("GET", "/healthz", "", "10.0.0.1"); code != http.StatusOK {
 		t.Fatalf("healthz = %d", code)
+	}
+}
+
+func TestRateLimitTrustedProxy(t *testing.T) {
+	d := deps(seedService())
+	d.LookupLimit = httpapi.RateLimit{Rate: 0, Burst: 1}
+	d.TrustedProxies = []netip.Prefix{netip.MustParsePrefix("172.16.0.0/12")}
+	h := httpapi.NewRouter(d)
+
+	send := func(remote, realIP string) int {
+		req := httptest.NewRequest("POST", "/v1/lookup", strings.NewReader(`{"ids":[]}`))
+		req.RemoteAddr = remote + ":1234"
+		if realIP != "" {
+			req.Header.Set("X-Real-IP", realIP)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	// Clients behind the proxy get separate buckets.
+	if code := send("172.17.0.1", "1.1.1.1"); code != http.StatusOK {
+		t.Fatalf("first client = %d", code)
+	}
+	if code := send("172.17.0.1", "2.2.2.2"); code != http.StatusOK {
+		t.Fatalf("second client = %d, want 200", code)
+	}
+	if code := send("172.17.0.1", "1.1.1.1"); code != http.StatusTooManyRequests {
+		t.Fatalf("repeat client = %d, want 429", code)
+	}
+	// An untrusted peer cannot spoof the header.
+	if code := send("10.0.0.1", "3.3.3.3"); code != http.StatusOK {
+		t.Fatalf("untrusted first = %d", code)
+	}
+	if code := send("10.0.0.1", "4.4.4.4"); code != http.StatusTooManyRequests {
+		t.Fatalf("untrusted spoof = %d, want 429", code)
 	}
 }
