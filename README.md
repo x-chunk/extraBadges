@@ -23,6 +23,7 @@ EXTRABADGES_ADMIN_TOKEN=... EXTRABADGES_BOT_TOKEN=... go run ./cmd/extrabadges
 | `EXTRABADGES_INITDATA_MAX_AGE` | `24h`             | максимальный возраст `auth_date` в `initData`        |
 | `EXTRABADGES_MARK_EMOJI_ID`    | —                 | значок метки клиента                                 |
 | `EXTRABADGES_MARK_TEXT`        | `exteraless user` | текст метки клиента                                  |
+| `EXTRABADGES_TRUSTED_PROXIES`  | —                 | CIDR прокси через запятую, чьему `X-Real-IP` верить  |
 
 Схема SQLite мигрирует сама при старте (`PRAGMA user_version`).
 
@@ -34,6 +35,11 @@ docker compose up --build
 ```
 
 База лежит в volume `data`. Порт на хосте меняется через `EXTRABADGES_PORT`.
+
+За nginx на хосте: `EXTRABADGES_PORT=127.0.0.1:8080`, чтобы порт не торчал
+наружу, `EXTRABADGES_TRUSTED_PROXIES=172.16.0.0/12` и
+`proxy_set_header X-Real-IP $remote_addr;` в nginx — иначе rate limit видит
+всех клиентов под одним адресом.
 
 ### Тест с реальным клиентом
 
